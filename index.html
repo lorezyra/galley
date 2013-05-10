@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+    <title>MapsEngine Mutation Demo></title>
+
+    <!-- Load jQuery for cross-browser support. -->
+    <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.8/jquery.min.js"></script>
+    <!-- Load bootstrap and editable plugin -->
+    <link href="bootstrap/css/bootstrap.min.css" rel="stylesheet" media="screen">
+    <script src="//netdna.bootstrapcdn.com/twitter-bootstrap/2.3.1/js/bootstrap.min.js"></script>
+    <link href="//netdna.bootstrapcdn.com/twitter-bootstrap/2.3.1/css/bootstrap-combined.min.css" rel="stylesheet">
+    <script src="bootstrap-editable/js/bootstrap-editable-inline.min.js"></script>
+    <!-- Load the playground implementation -->
+    <script src="https://maps.googleapis.com/maps/api/js?sensor=false&libraries=drawing,visualization"></script>
+    <script type="text/javascript" src="https://apis.google.com/js/auth.js?onload=initialize"></script>
+    <script type="text/javascript" src="GeoJSON.js"></script>
+    <script type="text/javascript" src="playground.js"></script>
+    <script type="text/javascript" src="auth.js"></script>
+
+    <style type="text/css">
+      #map-canvas, #table-canvas {
+        margin-top: 60px;
+        height: 100%;
+        padding: 0;
+      }
+      #map-canvas img {
+        max-width: none;
+      }
+      #table-canvas, #table-map-switcher {
+        display: none;
+      }
+      .sidebar-nav {
+        overflow: auto;
+        margin-top: 60px;
+      }
+      #instructions {
+        background: #fffbaf;
+        font-size: 1.2em;
+        padding: 5px;
+      }
+      .sidebar.active {
+        font-weight: bold;
+      }
+      .table td {
+        padding: 3px;
+      }
+      .hero-unit {
+        padding:0;
+      }
+      #authorize-button {
+        margin-left: 46%;
+        margin-top: 10%;
+        display: none;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="navbar navbar-inverse navbar-fixed-top">
+      <div class="navbar-inner">
+        <div class="container-fluid">
+          <div class="nav-collapse collapse">
+            <p class="navbar-text pull-right">
+              <a id="table-map-switcher" href="#">Table View</a>
+            </p>
+            <ul class="nav">
+              <li>
+                <select id="project_select">
+                  <option>Select a Project
+                </select>
+              </li>
+              <li class="header active">
+                <a href="#" class="endpoint" id="sidebar-tables">Tables</a>
+              </li>
+              <li class="header">
+                <a href="#" class="endpoint" id="sidebar-maps">Maps</a>
+              </li>
+              <li class="header">
+                <a href="#" class="endpoint" id="sidebar-layers">Layers</a>
+              </li>
+              <li class="header">
+                <a href="#" class="endpoint" id="sidebar-assets">Assets</a>
+              </li>
+              <li class="header">
+                <a href="#" class="endpoint" id="sidebar-rasterCollections">
+                  Raster Collections
+                </a>
+              </li>
+            </ul>
+          </div><!--/.nav-collapse -->
+        </div>
+      </div>
+    </div>
+
+    <div class="container-fluid">
+      <div class="row-fluid">
+        <div class="span3">
+          <div class="well sidebar-nav">
+            <ul id="sidebar-list" class="nav nav-list">
+              <li id="instructions">Click the Authorize button to get started</li>
+            </ul>
+          </div><!--/.well -->
+        </div><!--/span-->
+
+        <div class="span9">
+          <div class="hero-unit">
+            <div id="map-canvas">
+              <input type="button" class="btn btn-primary" id="authorize-button" value="authorize">
+            </div>
+            <div id="table-canvas"></div>
+          </div>
+        </div><!--/span-->
+      </div><!--/row-->
+
+   </div><!--/.fluid-container-->
+
+  </body>
+</html>
