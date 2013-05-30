@@ -1,0 +1,3 @@
+[submodule "externals/x-editable"]
+	path = externals/x-editable
+	url = https://github.com/vitalets/x-editable.git
