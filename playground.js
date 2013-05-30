@@ -23,7 +23,7 @@ var GME = {
   FTKey: 'xxx',
   token: null,
   currentRectangles: [],
-  mapDataLayers: [],
+  mapsEngineLayers: [],
   highlightedRect: null,
   tableDetails: {},
   currentFeatures: [],
@@ -86,7 +86,7 @@ GME.clearMap = function() {
   var overlayArrays = [
     GME.currentRectangles,
     GME.currentFeatures,
-    GME.mapDataLayers
+    GME.mapsEngineLayers
   ];
 
   $.each(overlayArrays, function(i, overlays) {
@@ -499,7 +499,7 @@ GME.displayMap = function(id, bounds) {
                 '&v=MAP_CREATION&aid=',
                 id].join('');
   console.log(mapUrl);
-  var mapDataLayer = new google.maps.visualization.MapDataLayer({
+  var mapsEngingeLayer = new google.maps.visualization.MapsEngineLayer({
     map: GME.map,
     oAuthToken: GME.token
   });
@@ -512,13 +512,13 @@ GME.displayMap = function(id, bounds) {
  * @param {google.maps.MVCObject} bounds the maps api bounds to zoom to.
  */
 GME.displayLayer = function(asset, bounds) {
-  var mapDataLayer = new google.maps.visualization.MapDataLayer({
+  var mapsEngingeLayer = new google.maps.visualization.MapsEngineLayer({
     map: GME.map,
     layerId: asset.id,
     oAuthToken: GME.token
   });
-  GME.mapDataLayers.push(mapDataLayer);
-  google.maps.event.addListener(mapDataLayer, 'click', function(event) {
+  GME.mapsEngineLayers.push(mapsEngingeLayer);
+  google.maps.event.addListener(mapsEngingeLayer, 'click', function(event) {
     console.log('layer click', event);
     GME.infoWindow.setContent(event.properties.infoWindowHtml);
     GME.infoWindow.setPosition(event.latLng);
