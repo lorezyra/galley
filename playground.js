@@ -95,7 +95,19 @@ GME.clearMap = function() {
     });
     overlays = [];
   });
+};
 
+
+/**
+ * Clears and resets the sidebar content.
+ */
+GME.resetSidebar = function() {
+  // Reset sidebar.
+  var li = $('<li/>', {
+    id: 'information',
+    class: 'information sidebar'
+  }).hide();
+  $('#sidebar-list').html('').append(li);
 };
 
 /**
@@ -117,7 +129,7 @@ GME.getBoundsFromBBox = function(bbox) {
  */
 GME.displayAssets = function(results, apiEndpoint) {
   GME.clearMap();
-  $('#sidebar-list').html('');
+  GME.resetSidebar();
   $('#table-map-switcher').hide();
 
   var rectBounds = new google.maps.LatLngBounds();
@@ -490,15 +502,12 @@ GME.setupGeomSaveLink = function(tableId, overlay) {
 
 /**
  * Displays a given GME 'Map' by adding each layer individually.
- * @param {string} id the id of the map to be displayed.
+ * @param {string} asset object for the map to be displayed.
  * @param {google.maps.MVCObject} bounds the maps api bounds to zoom to.
  */
-GME.displayMap = function(id, bounds) {
-  var mapUrl = ['https://earthbuilder.google.com/admin/#MapCreationPlace:cid=',
-                id.split('-')[0],
-                '&v=MAP_CREATION&aid=',
-                id].join('');
-  console.log(mapUrl);
+GME.displayMap = function(asset, bounds) {
+  var uri = GME.getMapsEngineLink(asset.id, 'MapCreation');
+  $('#information').show().html(uri + '<br/>' + asset.id);
   var mapsEngingeLayer = new google.maps.visualization.MapsEngineLayer({
     map: GME.map,
     oAuthToken: GME.token
@@ -506,12 +515,15 @@ GME.displayMap = function(id, bounds) {
   //TODO (jlivni):  Actually add the individual layers instead of the map.
 };
 
+
 /**
  * Displays a given GME 'Layer' by adding each layer individually.
  * @param {string} asset object for the layer to be displayed.
  * @param {google.maps.MVCObject} bounds the maps api bounds to zoom to.
  */
 GME.displayLayer = function(asset, bounds) {
+  var uri = GME.getMapsEngineLink(asset.id, 'Layers');
+  $('#information').show().html(uri + '<br/>' + asset.id);
   var mapsEngingeLayer = new google.maps.visualization.MapsEngineLayer({
     map: GME.map,
     layerId: asset.id,
@@ -566,12 +578,33 @@ GME.setTableSwitcher = function() {
 };
 
 /**
+ * Create a link to the asset within Maps Engine
+ * @param {string} id of the asset.
+ * @param {place} assetType for the GME.
+ * @return {string} html link.
+ *
+ */
+GME.getMapsEngineLink = function(id, assetType) {
+  var tableUrl = ['https://earthbuilder.google.com/admin/#',
+                  assetType,
+                  'Place:cid=',
+                  id.split('-')[0],
+                  '&v=DETAIL_INFO&aid=',
+                  id].join('');
+  return ['<a target="_blank" href="',
+          tableUrl,
+          '">Display in Maps Engine</a>'].join('');
+};
+
+/**
  * Get the selected features for the table; zoom map.
  * @param {string} asset the asset object of the table to display.
  * @param {google.maps.MVCObject} bounds the Maps API bounds to zoom to.
  */
 GME.displayTable = function(asset, bounds) {
   var id = asset.id;
+  var uri = GME.getMapsEngineLink(id, 'Repository');
+  $('#information').show().html(uri + '<br/>' + asset.id);
   GME.displayMapView(true);
   $('.sidebar.active').removeClass('active');
   $('#side_' + id).parent().addClass('active');
@@ -651,8 +684,8 @@ GME.displayTableEditor = function(id) {
  * @param {string} apiEndpoint which endpoint (such as 'map') to query.
  */
 GME.getAssets = function(apiEndpoint) {
-  //clear all existing sidebar items
-  $('#sidebar-list').html('');
+  GME.clearMap();
+  GME.resetSidebar();
   apiEndpoint = $('.header.active a')[0].id.split('-')[1];
   parameters = {
     projectId: GME.projectId,
@@ -668,6 +701,7 @@ GME.getAssets = function(apiEndpoint) {
 
   GME.queryGME(url, parameters, function(response) {
     GME.clearMap();
+    GME.resetSidebar();
     GME.displayAssets(response, apiEndpoint);
   });
 };
