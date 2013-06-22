@@ -491,7 +491,7 @@ GME.setupGeomSaveLink = function(tableId, overlay) {
           overlay.set('draggable', false);
           overlay.bounce();
         }
-
+        $('#geom_edit_link').html('edit geometry')
       },
       error: function(response) {
         console.log('error', response);
