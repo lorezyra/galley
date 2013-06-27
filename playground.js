@@ -26,7 +26,7 @@ var GME = {
   mapsEngineLayers: [],
   highlightedRect: null,
   tableDetails: {},
-  currentFeatures: [],
+  currentOverlays: {},
   infoWindow: new google.maps.InfoWindow({
     maxWidth: '500px'
   })
@@ -67,6 +67,7 @@ GME.initializeMap = function() {
 
   GME.resizeMapToWindow();
   GME.setProjects();
+  GME.configureDrawingTools();
 
   // Initialize the bbox which will highlight the selected table.
   GME.highlightedRect = new google.maps.Rectangle({
@@ -78,14 +79,108 @@ GME.initializeMap = function() {
 };
 
 /**
+ * Initalizes the drawing tool manager.
+ */
+GME.configureDrawingTools = function() {
+  GME.drawingManager = new google.maps.drawing.DrawingManager({
+    drawingControl: true,
+    drawingControlOptions: {
+      position: google.maps.ControlPosition.TOP_CENTER,
+      drawingModes: [
+        google.maps.drawing.OverlayType.MARKER,
+        google.maps.drawing.OverlayType.POLYGON,
+        google.maps.drawing.OverlayType.POLYLINE
+      ]
+    },
+    markerOptions: {
+      icon: 'https://maps.gstatic.com/intl/en_us/mapfiles/markers2/measle.png'
+    },
+    polygonOptions: {
+      fillColor: '#ffff00',
+      fillOpacity: .5,
+      strokeWeight: 5,
+      clickable: false,
+      editable: true,
+      zIndex: 1
+    }
+  });
+  google.maps.event.addListener(GME.drawingManager,
+                                'overlaycomplete',
+                                GME.createFeature);
+};
+
+
+/**
+ * Create a new feature on the map, and add it to local cached features.
+ * @param {google.maps.MVCObject} drawingResult the Overlay that was created.
+ */
+GME.createFeature = function(drawingResult) {
+    var geomTypes = {
+      'polyline': 'LineString',
+      'polygon': 'Polygon',
+      'marker': 'Point'
+    };
+    var overlay = drawingResult.overlay;
+    overlay._gmeGeomType = geomTypes[drawingResult.type];
+    // For now, just hack a randomish id.
+    var gx_id = 'galley_' + parseInt(Math.random() * 10000000000);
+    var geojson = {
+      properties: {
+        gx_id: gx_id
+      },
+      geometry: GME.getGeoJSONGeometryFromOverlay(overlay),
+      type: 'Feature'
+    };
+    var request = {
+      'features': [
+        geojson
+      ]
+    };
+    $.ajax({
+      type: 'POST',
+      url: [GME.baseUrl, 'tables/', GME.currentTableId, '/features/batchInsert'].join(''),
+      data: window.JSON.stringify(request),
+      dataType: 'json',
+      headers: {
+        Authorization: 'Bearer ' + GME.token,
+        'content-type': 'application/json'
+      },
+      success: function(response, newValue) {
+        overlay.setMap(null);
+        var table = GME.tableDetails[GME.currentTableId];
+        table.features[gx_id] = geojson;
+        GME.notify('New feature added');
+        // Add empty schema for editing
+        var schema = table.schema;
+        var geom_col = schema.primaryGeometry;
+        $.each(schema.columns, function(i, col) {
+          if (col.name != geom_col) {
+            geojson.properties[col.name] = '';
+          }
+        });
+        geojson.properties['gx_id'] = gx_id;
+        table.features[gx_id] = geojson;
+        GME.displayFeatures(GME.currentTableId);
+      },
+      error: function(response) {
+        GME.notify('Error saving feature');
+        console.log('SAVE error', response);
+        overlay.setMap(null);
+      }
+   });
+};
+
+
+/**
  * Clears map of bounding boxes, overlays, and mapsEngineLayers.
  */
 GME.clearMap = function() {
   GME.infoWindow.setMap(null);
+  GME.highlightedRect.setMap(null);
 
   var overlayArrays = [
     GME.currentRectangles,
-    GME.currentFeatures,
+    GME.currentOverlays,
     GME.mapsEngineLayers
   ];
 
@@ -93,21 +188,34 @@ GME.clearMap = function() {
     $.each(overlays, function(i, overlay) {
       overlay.setMap(null);
     });
-    overlays = [];
   });
+  GME.currentRectangles = [];
+  GME.currentOverlays = {};
+  GME.mapsEngineLayers = [];
 };
 
-
+/**
+ * Display a short-lived notification in the sidebar.
+ * @param {string} message the message to display.
+ */
+GME.notify = function(message) {
+  $('#notification').show().html(message).delay(5000).fadeOut();
+};
 /**
  * Clears and resets the sidebar content.
+
  */
 GME.resetSidebar = function() {
   // Reset sidebar.
-  var li = $('<li/>', {
+  var notify_li = $('<li/>', {
+    id: 'notification',
+    class: 'notification sidebar'
+  }).hide();
+  var info_li = $('<li/>', {
     id: 'information',
     class: 'information sidebar'
   }).hide();
-  $('#sidebar-list').html('').append(li);
+  $('#sidebar-list').html('').append(notify_li).append(info_li);
 };
 
 /**
@@ -130,6 +238,7 @@ GME.getBoundsFromBBox = function(bbox) {
 GME.displayAssets = function(results, apiEndpoint) {
   GME.clearMap();
   GME.resetSidebar();
+  GME.drawingManager.setMap(null);
   $('#table-map-switcher').hide();
 
   var rectBounds = new google.maps.LatLngBounds();
@@ -158,6 +267,7 @@ GME.displayAssets = function(results, apiEndpoint) {
             case 'table':
               GME.setTableSwitcher();
               GME.displayTable(asset, bounds);
+              GME.drawingManager.setMap(GME.map);
               break;
             case 'layer':
               GME.displayLayer(asset, bounds);
@@ -236,10 +346,10 @@ GME.setProjects = function() {
 
 /**
  * Display a list of features on the map.
- * @param {Array} features that should be displayed.
- * @param {string} tableId id of the table.
+ * @param {string} tableId id of the table containing the features.
  */
-GME.displayFeatures = function(features, tableId) {
+GME.displayFeatures = function(tableId) {
+  var features = GME.tableDetails[tableId].features;
   GME.infoWindow.setMap(null);
   var style = {
     strokeColor: '#003366',
@@ -248,8 +358,11 @@ GME.displayFeatures = function(features, tableId) {
     zIndex: 50,
     icon: 'https://maps.gstatic.com/intl/en_us/mapfiles/markers2/measle_blue.png'
   };
-  //clear out old ones
-  GME.currentFeatures = [];
+  // Clear out old overlays, if any.
+  $.each(GME.currentOverlays, function(i, overlay) {
+    overlay.setMap(null);
+  });
+  GME.currentOverlays = {};
   $.each(features, function(i, feature) {
     if (feature.length > 1) {console.log('MultiGeom?')}
     if (!feature.properties) {
@@ -268,7 +381,7 @@ GME.displayFeatures = function(features, tableId) {
       if (overlay.geojsonProperties) {
         google.maps.event.addListener(overlay, 'click', GME.displayInfoWindow);
       }
-      GME.currentFeatures.push(overlay);
+      GME.currentOverlays[feature.properties.gx_id] = overlay;
     }
   });
 };
@@ -359,7 +472,7 @@ GME.setEditable = function(tableId, editableClass) {
       }
     },
     success: function(response, newValue) {
-      // TODO(jlivni): put status in UI
+      GME.notify('Feature edits saved');
       console.log('success', response, newValue);
     },
     error: function(response) {
@@ -376,9 +489,17 @@ GME.setEditable = function(tableId, editableClass) {
 GME.displayInfoWindow = function(event) {
   var overlay = this;
   var container = $('<div/>');
+  var geomDeleteLink = $('<a/>', {
+    html: 'delete',
+    id: 'geom_delete_link',
+    class: 'padding',
+    href: '#'
+  });
+  geomDeleteLink.appendTo(container);
   var geomEditLink = $('<a/>', {
     html: 'edit geometry',
     id: 'geom_edit_link',
+    class: 'padding',
     href: '#'
   });
   geomEditLink.appendTo(container);
@@ -401,16 +522,54 @@ GME.displayInfoWindow = function(event) {
   $('#geom_edit_link').click(function(e) {
     overlay.set('editable', true);
     overlay.set('draggable', true);
-    if (overlay.bounce) {
-      overlay.set('draggable', true);
-      overlay.bounce();
-    }
     //TODO zoom to feature
     GME.setupGeomSaveLink(GME.currentTableId, overlay);
+  });
+  $('#geom_delete_link').click(function(e) {
+    GME.deleteFeature(overlay.geojsonProperties.gx_id);
   });
 };
 
 
+/**
+ * Deletes a feature from GME.
+ * @param {string} featureId is the gx_id of the feature.
+ */
+GME.deleteFeature = function(featureId) {
+  if (window.confirm('Are you sure you want to delete this feature?')) {
+    var request = {
+      'gx_ids': [featureId]
+    };
+    $.ajax({
+      type: 'POST',
+      url: [GME.baseUrl, 'tables/', GME.currentTableId, '/features/batchDelete'].join(''),
+      data: window.JSON.stringify(request),
+      dataType: 'json',
+      headers: {
+        Authorization: 'Bearer ' + GME.token,
+        'content-type': 'application/json'
+      },
+      success: function(response, newValue) {
+        GME.notify('Successfully deleted feature');
+        GME.currentOverlays[featureId].setMap(null);
+        GME.infoWindow.setMap(null);
+        // Remove from local copy of features
+        var features = GME.tableDetails[GME.currentTableId].features;
+        delete features[featureId];
+        // Redraw table view if needed;
+        if ($('#table-map-switcher').html() == 'Map View') {
+          GME.displayTableEditor(GME.currentTableId);
+        }
+      },
+      error: function(response) {
+        GME.notify('Error deleting feature');
+        console.log('DELETE error', response);
+      }
+    });
+  }
+
+
+};
 /**
  * Return a GeoJSON formatted geometry for a given Overlay.
  * @param {google.maps.MVCObject} overlay the map overlay.
@@ -475,7 +634,6 @@ GME.setupGeomSaveLink = function(tableId, overlay) {
         geojson
       ]
     };
-    console.log(window.JSON.stringify(request));
     $.ajax({
       type: 'POST',
       url: [GME.baseUrl, 'tables/', tableId, '/features/batchPatch'].join(''),
@@ -486,14 +644,16 @@ GME.setupGeomSaveLink = function(tableId, overlay) {
         'content-type': 'application/json'
       },
       success: function(response, newValue) {
+        GME.notify('Geometry edits saved');
         overlay.set('editable', false);
         if (overlay.bounce) {
           overlay.set('draggable', false);
           overlay.bounce();
         }
-        $('#geom_edit_link').html('edit geometry')
+        $('#geom_edit_link').html('edit geometry');
       },
       error: function(response) {
+        GME.notify('Error saving geometry edit');
         console.log('error', response);
       }
    });
@@ -539,16 +699,6 @@ GME.displayLayer = function(asset, bounds) {
   GME.map.fitBounds(bounds);
 };
 
-
-/**
- * Helper method passes features of a given table to be displayed as Overlays.
- * @param {string} id the id of the map to be displayed.
- */
-GME.displayTableDetails = function(id) {
-  var details = GME.tableDetails[id];
-  var features = details.features;
-  GME.displayFeatures(features, id);
-};
 
 /**
  * Switches between table and map view.
@@ -610,7 +760,7 @@ GME.displayTable = function(asset, bounds) {
   $('#side_' + id).parent().addClass('active');
   GME.currentTableId = id;
   if (GME.tableDetails[id]) {
-    GME.displayTableDetails(id);
+    GME.displayFeatures(id);
   } else {
     var url = [GME.baseUrl, 'tables/', id, '/features?include=schema'].join('');
     parameters = {
@@ -618,10 +768,15 @@ GME.displayTable = function(asset, bounds) {
       maxResults: 500
     };
     GME.queryGME(url, parameters, function(response) {
+      // create dict of features
+      var features = {};
+      $.each(response.features, function(i, feature) {
+        features[feature.properties.gx_id] = feature;
+      });
+      response.features = features;
       GME.tableDetails[id] = response;
-      GME.displayTableDetails(id);
+      GME.displayFeatures(id);
     });
-
   }
 };
 
@@ -642,6 +797,9 @@ GME.displayTableEditor = function(id) {
     class: 'table table-bordered table-striped'
   });
   var header = '<tr>';
+  // Add columns for view/delete
+  header += '<th>Show</th>';
+  header += '<th>Delete</th>';
   $.each(result.schema.columns, function(i, metadata) {
     if (metadata.name != 'geometry') {
       header += '<th>' + metadata.name + '</th>';
@@ -652,6 +810,25 @@ GME.displayTableEditor = function(id) {
   $.each(result.features, function(i, feature) {
     var id = feature.properties.gx_id;
     var tr = $('<tr/>');
+    // view on map
+    var td = $('<td/>');
+    var tdHref = $('<a/>', {
+      text: 'show'
+    }).click(function() {
+      GME.zoomToFeature(id);
+    });
+    td.appendTo(tr);
+    tdHref.appendTo(td);
+    // delete
+    var td = $('<td/>');
+    var tdHref = $('<a/>', {
+      text: 'delete'
+    }).click(function() {
+      GME.deleteFeature(id);
+    });
+    td.appendTo(tr);
+    tdHref.appendTo(td);
+
     $.each(result.schema.columns, function(i, metadata) {
       if (metadata.name == 'geometry') {
         return true; // Continue
@@ -679,7 +856,32 @@ GME.displayTableEditor = function(id) {
   GME.setEditable(GME.currentTableId);
 };
 
+
 /**
+ * Zoom to a given feature on the map.
+ * @param {string} featureId ID of the feature to zoom.
+ */
+GME.zoomToFeature = function(featureId) {
+  // Ensure we're in map view
+  GME.displayMapView(true);
+  GME.setTableSwitcher();
+  overlay = GME.currentOverlays[featureId];
+  if (overlay.getPosition) {
+    GME.map.setCenter(overlay.getPosition());
+    GME.map.setZoom(16);
+  } else {
+    var bounds = new google.maps.LatLngBounds();
+    $.each(overlay.getPath().getArray(), function(i, latLng) {
+     console.log(i, latLng, latLng.lat());
+      bounds.extend(latLng);
+    });
+    GME.map.fitBounds(bounds);
+  }
+}
+
+
+/**
+};
  * For a given project, puts all the assets (maps, layers, etc) in the sidebar.
  * @param {string} apiEndpoint which endpoint (such as 'map') to query.
  */
