@@ -364,7 +364,6 @@ GME.displayFeatures = function(tableId) {
   });
   GME.currentOverlays = {};
   $.each(features, function(i, feature) {
-    if (feature.length > 1) {console.log('MultiGeom?')}
     if (!feature.properties) {
       window.alert('no properties for feature');
     }
@@ -372,19 +371,20 @@ GME.displayFeatures = function(tableId) {
     try {
       overlay._gmeGeomType = feature.geometry.type;
     } catch (e) {
-      console.log(e, feature);
+      console.log('Error: No geometry type for feature', feature);
     }
-    if (overlay.type && overlay.type == 'Error') {
-      console.log('Error', i, feature, overlay);
-    } else {
-      overlay.setMap(GME.map);
-      if (overlay.geojsonProperties) {
-        google.maps.event.addListener(overlay, 'click', GME.displayInfoWindow);
+    if (!overlay.length) {
+      // It could be a multigeom, so we force into rendering single overlays.
+      overlay = [overlay];
+    }
+    $.each(overlay, function(i, single_overlay) {
+      single_overlay.setMap(GME.map);
+      if (single_overlay.geojsonProperties) {
+        google.maps.event.addListener(single_overlay, 'click', GME.displayInfoWindow);
       }
-      GME.currentOverlays[feature.properties.gx_id] = overlay;
-    }
+    });
   });
-};
+}
 
 /**
  * Create html for a row that's ready for click-edit in an infowindow.
