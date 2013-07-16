@@ -377,10 +377,10 @@ GME.displayFeatures = function(tableId) {
       // It could be a multigeom, so we force into rendering single overlays.
       overlay = [overlay];
     }
-    $.each(overlay, function(i, single_overlay) {
-      single_overlay.setMap(GME.map);
-      if (single_overlay.geojsonProperties) {
-        google.maps.event.addListener(single_overlay, 'click', GME.displayInfoWindow);
+    $.each(overlay, function(i, singleOverlay) {
+      singleOverlay.setMap(GME.map);
+      if (singleOverlay.geojsonProperties) {
+        google.maps.event.addListener(singleOverlay, 'click', GME.displayInfoWindow);
       }
     });
   });
