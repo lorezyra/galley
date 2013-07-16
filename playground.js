@@ -111,63 +111,65 @@ GME.configureDrawingTools = function() {
 
 
 /**
- * Create a new feature on the map, and add it to local cached features.
+ * Adds a newly created feature to local cache, and POST to backend.
  * @param {google.maps.MVCObject} drawingResult the Overlay that was created.
  */
 GME.createFeature = function(drawingResult) {
-    var geomTypes = {
-      'polyline': 'LineString',
-      'polygon': 'Polygon',
-      'marker': 'Point'
-    };
-    var overlay = drawingResult.overlay;
-    overlay._gmeGeomType = geomTypes[drawingResult.type];
-    // For now, just hack a randomish id.
-    var gx_id = 'galley_' + parseInt(Math.random() * 10000000000);
-    var geojson = {
-      properties: {
-        gx_id: gx_id
-      },
-      geometry: GME.getGeoJSONGeometryFromOverlay(overlay),
-      type: 'Feature'
-    };
-    var request = {
-      'features': [
-        geojson
-      ]
-    };
-    $.ajax({
-      type: 'POST',
-      url: [GME.baseUrl, 'tables/', GME.currentTableId, '/features/batchInsert'].join(''),
-      data: window.JSON.stringify(request),
-      dataType: 'json',
-      headers: {
-        Authorization: 'Bearer ' + GME.token,
-        'content-type': 'application/json'
-      },
-      success: function(response, newValue) {
-        overlay.setMap(null);
-        var table = GME.tableDetails[GME.currentTableId];
-        table.features[gx_id] = geojson;
-        GME.notify('New feature added');
-        // Add empty schema for editing
-        var schema = table.schema;
-        var geom_col = schema.primaryGeometry;
-        $.each(schema.columns, function(i, col) {
-          if (col.name != geom_col) {
-            geojson.properties[col.name] = '';
-          }
-        });
-        geojson.properties['gx_id'] = gx_id;
-        table.features[gx_id] = geojson;
-        GME.displayFeatures(GME.currentTableId);
-      },
-      error: function(response) {
-        GME.notify('Error saving feature');
-        console.log('SAVE error', response);
-        overlay.setMap(null);
-      }
-   });
+  var endpoint = '/features/batchInsert';
+  var url = [GME.baseUrl, 'tables/', GME.currentTableId, endpoint].join('');
+  var geomTypes = {
+    'polyline': 'LineString',
+    'polygon': 'Polygon',
+    'marker': 'Point'
+  };
+  var overlay = drawingResult.overlay;
+  overlay._gmeGeomType = geomTypes[drawingResult.type];
+  // For now, just hack a randomish id.
+  var gx_id = 'galley_' + parseInt(Math.random() * 10000000000);
+  var geojson = {
+    properties: {
+      gx_id: gx_id
+    },
+    geometry: GME.getGeoJSONGeometryFromOverlay(overlay),
+    type: 'Feature'
+  };
+  var request = {
+    'features': [
+      geojson
+    ]
+  };
+  $.ajax({
+    type: 'POST',
+    url: url,
+    data: window.JSON.stringify(request),
+    dataType: 'json',
+    headers: {
+      Authorization: 'Bearer ' + GME.token,
+      'content-type': 'application/json'
+    },
+    success: function(response, newValue) {
+      overlay.setMap(null);
+      var table = GME.tableDetails[GME.currentTableId];
+      table.features[gx_id] = geojson;
+      GME.notify('New feature added');
+      // Add empty schema for editing
+      var schema = table.schema;
+      var geom_col = schema.primaryGeometry;
+      $.each(schema.columns, function(i, col) {
+        if (col.name != geom_col) {
+          geojson.properties[col.name] = '';
+        }
+      });
+      geojson.properties['gx_id'] = gx_id;
+      table.features[gx_id] = geojson;
+      GME.displayFeatures(GME.currentTableId);
+    },
+    error: function(response) {
+      GME.notify('Error saving feature');
+      console.log('SAVE error', response);
+      overlay.setMap(null);
+    }
+  });
 };
 
 
@@ -380,11 +382,12 @@ GME.displayFeatures = function(tableId) {
     $.each(overlay, function(i, singleOverlay) {
       singleOverlay.setMap(GME.map);
       if (singleOverlay.geojsonProperties) {
-        google.maps.event.addListener(singleOverlay, 'click', GME.displayInfoWindow);
+        google.maps.event.addListener(singleOverlay,
+            'click', GME.displayInfoWindow);
       }
     });
   });
-}
+};
 
 /**
  * Create html for a row that's ready for click-edit in an infowindow.
@@ -536,13 +539,15 @@ GME.displayInfoWindow = function(event) {
  * @param {string} featureId is the gx_id of the feature.
  */
 GME.deleteFeature = function(featureId) {
+  var endpoint = '/features/batchDelete';
+  var url = [GME.baseUrl, 'tables/', GME.currentTableId, endpoint].join('');
   if (window.confirm('Are you sure you want to delete this feature?')) {
     var request = {
       'gx_ids': [featureId]
     };
     $.ajax({
       type: 'POST',
-      url: [GME.baseUrl, 'tables/', GME.currentTableId, '/features/batchDelete'].join(''),
+      url: url,
       data: window.JSON.stringify(request),
       dataType: 'json',
       headers: {
@@ -567,9 +572,9 @@ GME.deleteFeature = function(featureId) {
       }
     });
   }
-
-
 };
+
+
 /**
  * Return a GeoJSON formatted geometry for a given Overlay.
  * @param {google.maps.MVCObject} overlay the map overlay.
@@ -877,7 +882,7 @@ GME.zoomToFeature = function(featureId) {
     });
     GME.map.fitBounds(bounds);
   }
-}
+};
 
 
 /**
