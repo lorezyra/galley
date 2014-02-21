@@ -19,8 +19,6 @@
 
 var GME = {
   baseUrl: 'https://www.googleapis.com/mapsengine/v1/',
-  FTUrl: 'https://www.googleapis.com/fusiontables/v1/',
-  FTKey: 'xxx',
   token: null,
   currentRectangles: [],
   mapsEngineLayers: [],
@@ -279,7 +277,11 @@ GME.displayAssets = function(results, apiEndpoint) {
               break;
           }
         }
-      }).appendTo(li);
+      });
+      if (asset.processingStatus == 'complete') {
+        link.css('color', '#006633');
+      }
+      link.appendTo(li);
       li.appendTo($('#sidebar-list'));
 
       var rect = new google.maps.Rectangle({
@@ -314,18 +316,11 @@ GME.setProjects = function() {
          .attr('value', project.id)
          .text(project.name));
     });
-    // TODO(jlivni) Add FT support
-    /*
-    $('#project_select')
-       .append($('<option></option>')
-       .attr('value', 'FusionTables')
-       .text('Fusion Tables'));
-     */
-     $('#project_select').change(function() {
-       GME.projectId = $('#project_select option:selected').val();
-       window.location.hash = GME.projectId;
-       GME.getAssets();
-     });
+    $('#project_select').change(function() {
+      GME.projectId = $('#project_select option:selected').val();
+      window.location.hash = GME.projectId;
+      GME.getAssets();
+    });
 
     // Set up endoint clicks
     $('.endpoint').click(function(e) {
@@ -379,8 +374,9 @@ GME.displayFeatures = function(tableId) {
       // It could be a multigeom, so we force into rendering single overlays.
       overlay = [overlay];
     }
-    $.each(overlay, function(i, singleOverlay) {
+    $.each(overlay, function(j, singleOverlay) {
       singleOverlay.setMap(GME.map);
+      GME.currentOverlays[i + '_' + j] = singleOverlay;
       if (singleOverlay.geojsonProperties) {
         google.maps.event.addListener(singleOverlay,
             'click', GME.displayInfoWindow);
@@ -758,8 +754,14 @@ GME.getMapsEngineLink = function(id, assetType) {
  */
 GME.displayTable = function(asset, bounds) {
   var id = asset.id;
-  var uri = GME.getMapsEngineLink(id, 'Repository');
-  $('#information').show().html(uri + '<br/>' + asset.id);
+  var gmeLink = GME.getMapsEngineLink(id, 'Repository');
+  var createLink = $('<a/>', {
+    text: 'Create Layer',
+    href: '#'
+  }).click(function() {
+    GME.createLayer(asset);
+  });
+  $('#information').show().html(gmeLink).append(createLink).append(asset.id);
   GME.displayMapView(true);
   $('.sidebar.active').removeClass('active');
   $('#side_' + id).parent().addClass('active');
@@ -877,7 +879,6 @@ GME.zoomToFeature = function(featureId) {
   } else {
     var bounds = new google.maps.LatLngBounds();
     $.each(overlay.getPath().getArray(), function(i, latLng) {
-     console.log(i, latLng, latLng.lat());
       bounds.extend(latLng);
     });
     GME.map.fitBounds(bounds);
